@@ -1478,7 +1478,8 @@ class Api(object):
                      screen_name=None,
                      cursor=-1,
                      stringify_ids=False,
-                     count=5000):
+                     count=5000,
+                     total_count=None):
         """Returns a list of twitter user id's for every person
         the specified user is following.
   
@@ -1513,13 +1514,13 @@ class Api(object):
             parameters['stringify_ids'] = True
         if count is not None:
             parameters['count'] = count
-        result = []
 
         while True:
             parameters['cursor'] = cursor
             json_data = self._RequestUrl(url, 'GET', data=parameters)
             data = self._ParseAndCheckTwitter(json_data.content)
-            result += [x for x in data['ids']]
+            for x in data['ids']:
+                yield x
             if 'next_cursor' in data:
                 if data['next_cursor'] == 0 or data['next_cursor'] == data['previous_cursor']:
                     break
@@ -1527,10 +1528,13 @@ class Api(object):
                     cursor = data['next_cursor']
             else:
                 break
+            if total_count is not None:
+                total_count -= len(data['ids'])
+                if total_count < 1:
+                    break
             sec = self.GetSleepTime('/friends/ids')
             time.sleep(sec)
 
-        return result
 
     def GetFollowerIDsPaged(self,
                             user_id=None,
@@ -1634,7 +1638,8 @@ class Api(object):
   
         while True:
             next_cursor, previous_cursor, data = self.GetFollowerIDsPaged(user_id, screen_name, cursor, stringify_ids, count)
-            result += [x for x in data['ids']]
+            for x in data['ids']:
+                yield x
             if next_cursor == 0 or next_cursor == previous_cursor:
                 break
             else:
@@ -1646,7 +1651,6 @@ class Api(object):
             sec = self.GetSleepTime('/followers/ids')
             time.sleep(sec)
   
-        return result
 
     def GetFollowersPaged(self,
                           user_id=None,
@@ -1810,7 +1814,7 @@ class Api(object):
         if not include_entities:
             parameters['include_entities'] = 'false'
 
-        json_data = self._RequestUrl(url, 'GET', data=parameters)
+        json_data = self._RequestUrl(url, 'POST', data=parameters)
         try:
             data = self._ParseAndCheckTwitter(json_data.content)
         except TwitterError, e:
